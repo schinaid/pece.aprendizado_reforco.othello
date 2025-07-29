@@ -39,6 +39,7 @@ class JogadorMinimax:
         self.id_oponente = None
         self.limite_tempo = 0.1  # Tempo máximo para escolher jogada (100ms)
         self.inicio_busca = None
+        self.fallback_usado = 0
 
     def nova_partida(self, jogo, jogador, id_oponente=None):
         """
@@ -130,6 +131,7 @@ class JogadorMinimax:
 
         if jogada is None:
             # Fallback heurístico se o tempo for insuficiente
+            self.fallback_usado += 1
             jogadas = jogo.jogadas_legais()
             melhor_valor = float('-inf')
             for j in jogadas:
@@ -142,18 +144,18 @@ class JogadorMinimax:
                     jogada = j
         return jogada
 
-    def informa_propria_jogada(self, tabuleiro_antes, jogada, tabuleiro_depois):
+    def informa_fim(self, jogo_final):
         """
-        Notifica a IA sobre sua própria jogada.
-
+        Notifica a IA sobre o término da partida.
+    
         Parâmetros:
-        - tabuleiro_antes: estado do jogo antes da jogada
-        - jogada: tupla (linha, coluna) da jogada realizada
-        - tabuleiro_depois: estado do jogo após a jogada
-
+        - jogo_final: estado final do jogo (objeto Othello)
+    
         Retorno: None
         """
-        pass
+        print(f"Fallbacks usados nesta partida: {self.fallback_usado}")
+        self.fallback_usado = 0  # reset para a próxima partida
+    
 
     def informa_jogada_oponente(self, tabuleiro_antes, jogada, tabuleiro_depois):
         """
