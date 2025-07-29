@@ -13,7 +13,7 @@ Estrutura em pacote, pronta para expans√£o com minimax ou aprendizado por refor√
 """
 
 import numpy as np
-from utils.avaliador import diferenca_mobilidade
+from .utils.avaliador import diferenca_mobilidade
 
 # Tabela de pesos posicionais do tabuleiro (cantos e bordas favorecidos)
 HEURISTICA_POSICIONAL = np.array([

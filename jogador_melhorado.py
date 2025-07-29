@@ -9,12 +9,12 @@ Autores:
 
 Descrição:
 IA que utiliza Minimax com profundidade 3 e poda alfa-beta para escolher jogadas,
-com fallback para heurística tradicional caso o tempo de busca exceda 100ms.
+com fallback para heurística tradicional.
 """
 
 import numpy as np
 import time
-from utils.avaliador import diferenca_mobilidade
+from .utils.avaliador import diferenca_mobilidade
 
 # Tabela de pesos posicionais do tabuleiro (cantos e bordas favorecidos)
 HEURISTICA_POSICIONAL = np.array([
