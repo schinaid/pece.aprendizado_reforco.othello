@@ -1,4 +1,3 @@
-
 """
 IA Minimax com Poda Alfa-Beta para Othello (Competição 2025)
 
@@ -8,15 +7,17 @@ Autores:
 - Simone Britto
 
 Descrição:
-IA que utiliza Minimax com profundidade 3 e poda alfa-beta para escolher jogadas,
-com fallback para heurística tradicional.
+IA que utiliza o algoritmo Minimax com profundidade 3 e poda alfa-beta
+para escolher a melhor jogada no Othello. Em casos em que a busca
+excede o tempo limite (segundo as regras da competição), o agente
+faz uso de uma heurística posicional + ganho de peças como fallback.
 """
 
 import numpy as np
 import time
 from .utils.avaliador import diferenca_mobilidade
 
-# Tabela de pesos posicionais do tabuleiro (cantos e bordas favorecidos)
+# Tabela de pesos posicionais (valores estratégicos no tabuleiro)
 HEURISTICA_POSICIONAL = np.array([
     [100, -20, 10, 5, 5, 10, -20, 100],
     [-20, -50, -2, -2, -2, -2, -50, -20],
@@ -30,14 +31,16 @@ HEURISTICA_POSICIONAL = np.array([
 
 class JogadorMinimax:
     """
-    IA baseada em Minimax com fallback para heurística rápida.
+    IA baseada no algoritmo Minimax com poda alfa-beta e fallback heurístico.
     """
 
     def __init__(self):
-        """Inicializa o jogador e define o tempo limite de busca."""
+        """
+        Inicializa o jogador com limite de tempo e contadores auxiliares.
+        """
         self.jogador = None
         self.id_oponente = None
-        self.limite_tempo = 0.1  # Tempo máximo para escolher jogada (100ms)
+        self.limite_tempo = 0.13  # 130ms - seguro dentro dos 150ms da competição
         self.inicio_busca = None
         self.fallback_usado = 0
 
@@ -46,9 +49,9 @@ class JogadorMinimax:
         Notifica a IA do início de uma nova partida.
 
         Parâmetros:
-        - jogo: objeto da classe Othello com o estado inicial do jogo
-        - jogador: inteiro (1 ou -1) representando o lado da IA
-        - id_oponente: identificador opcional do oponente
+        - jogo: estado inicial da partida (objeto Othello)
+        - jogador: inteiro representando o lado da IA (1 ou -1)
+        - id_oponente: identificador opcional do adversário
 
         Retorno: None
         """
@@ -58,42 +61,45 @@ class JogadorMinimax:
     def avalia(self, jogo):
         """
         Avalia o estado do jogo com base em:
-        - Posição das peças
-        - Quantidade de peças ganhas
+        - Valor posicional das peças
+        - Diferença de peças no placar
         - Mobilidade relativa
 
         Parâmetros:
-        - jogo: objeto da classe Othello representando o estado atual
+        - jogo: objeto Othello representando o estado atual
 
         Retorno:
-        - valor (float): escore heurístico do estado
+        - valor (float): escore heurístico da posição
         """
         tab = jogo.tabuleiro()
         valor_pos = np.sum(tab * HEURISTICA_POSICIONAL * self.jogador)
         ganho = jogo.placar(self.jogador) - jogo.placar(-self.jogador)
         mobil = diferenca_mobilidade(jogo, self.jogador)
-        return valor_pos + ganho * 10 + mobil * 2
+        return valor_pos + ganho * 15 + mobil * 1
 
     def minimax(self, jogo, profundidade, alfa, beta, maximizando):
         """
         Algoritmo Minimax com poda alfa-beta.
 
         Parâmetros:
-        - jogo: estado atual do jogo (classe Othello)
-        - profundidade: profundidade máxima da busca
+        - jogo: estado atual do jogo
+        - profundidade: limite de profundidade restante
         - alfa: valor alfa para poda
         - beta: valor beta para poda
-        - maximizando: booleano indicando se é o turno da IA
+        - maximizando: True se for turno da IA, False se do oponente
 
         Retorno:
-        - (valor, jogada): tupla com valor da avaliação e melhor jogada encontrada
+        - (valor, jogada): tupla com escore e melhor jogada
         """
         if time.time() - self.inicio_busca > self.limite_tempo or profundidade == 0 or jogo.terminou():
             return self.avalia(jogo), None
 
+        jogadas = jogo.jogadas_legais()
+        if not jogadas:
+            return self.avalia(jogo), None
+
         melhor_valor = float('-inf') if maximizando else float('inf')
         melhor_jogada = None
-        jogadas = jogo.jogadas_legais()
 
         for jogada in jogadas:
             filho = jogo.joga(jogada)
@@ -116,70 +122,80 @@ class JogadorMinimax:
 
         return melhor_valor, melhor_jogada
 
-    def escolhe_jogada(self, jogo):
+    def fallback_heuristico(self, jogo):
         """
-        Escolhe a melhor jogada usando Minimax com fallback heurístico.
+        Estratégia alternativa usada quando Minimax excede o tempo.
 
         Parâmetros:
-        - jogo: objeto Othello representando o estado atual
+        - jogo: estado atual do jogo
 
         Retorno:
-        - jogada (tupla): coordenada da jogada escolhida (linha, coluna)
+        - jogada (tupla): coordenadas da melhor jogada disponível
         """
-        self.inicio_busca = time.time()
-        _, jogada = self.minimax(jogo, profundidade=3, alfa=float('-inf'), beta=float('inf'), maximizando=True)
+        jogadas = jogo.jogadas_legais()
+        if not jogadas:
+            return None
 
-        if jogada is None:
-            # Fallback heurístico se o tempo for insuficiente
+        melhor_valor = float('-inf')
+        melhores = []
+
+        for j in jogadas:
+            i, k = j
+            valor = HEURISTICA_POSICIONAL[i][k]
+            ganho = jogo.joga(j).placar(self.jogador) - jogo.placar(self.jogador)
+            score = valor + ganho * 10
+            if score > melhor_valor:
+                melhor_valor = score
+                melhores = [j]
+            elif score == melhor_valor:
+                melhores.append(j)
+
+        return np.random.choice(melhores)
+
+    def escolhe_jogada(self, jogo):
+        """
+        Escolhe a melhor jogada no turno atual.
+
+        Retorno:
+        - jogada (tupla): coordenada da jogada escolhida
+        """
+        try:
+            self.inicio_busca = time.time()
+            _, jogada = self.minimax(jogo, profundidade=3, alfa=float('-inf'), beta=float('inf'), maximizando=True)
+
+            if jogada is None:
+                self.fallback_usado += 1
+                return self.fallback_heuristico(jogo)
+
+            return jogada
+        except Exception as e:
+            print(f"[ERRO EM escolhe_jogada] {e}")
             self.fallback_usado += 1
-            jogadas = jogo.jogadas_legais()
-            melhor_valor = float('-inf')
-            for j in jogadas:
-                i, k = j
-                valor = HEURISTICA_POSICIONAL[i][k]
-                ganho = jogo.joga(j).placar(self.jogador) - jogo.placar(self.jogador)
-                score = valor + ganho * 10
-                if score > melhor_valor:
-                    melhor_valor = score
-                    jogada = j
-        return jogada
+            return self.fallback_heuristico(jogo)
 
-    def informa_fim(self, jogo_final):
+    def informa_propria_jogada(self, tabuleiro_antes, jogada, tabuleiro_depois):
         """
-        Notifica a IA sobre o término da partida.
-    
-        Parâmetros:
-        - jogo_final: estado final do jogo (objeto Othello)
-    
-        Retorno: None
+        Notifica a IA sobre a jogada realizada por ela mesma.
         """
-        print(f"Fallbacks usados nesta partida: {self.fallback_usado}")
-        self.fallback_usado = 0  # reset para a próxima partida
-    
+        pass
 
     def informa_jogada_oponente(self, tabuleiro_antes, jogada, tabuleiro_depois):
         """
-        Notifica a IA sobre a jogada do oponente.
-
-        Parâmetros:
-        - tabuleiro_antes: estado do jogo antes da jogada
-        - jogada: jogada feita pelo oponente
-        - tabuleiro_depois: estado após a jogada
-
-        Retorno: None
+        Notifica a IA sobre a jogada do adversário.
         """
         pass
 
     def informa_fim(self, jogo_final):
         """
-        Notifica a IA sobre o término da partida.
+        Notifica o fim da partida.
 
         Parâmetros:
-        - jogo_final: estado final do jogo (objeto Othello)
+        - jogo_final: objeto Othello representando o estado final
 
         Retorno: None
         """
-        pass
+        print(f"Fallbacks usados nesta partida: {self.fallback_usado}")
+        self.fallback_usado = 0
 
 def cria_jogador():
     """
